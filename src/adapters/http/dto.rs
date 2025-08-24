@@ -9,7 +9,7 @@ pub struct CreateUserRequest {
     pub email: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 pub struct UserResponse {
     pub id: Uuid,
     pub name: String,

@@ -1,8 +1,7 @@
+use std::sync::Arc;
+
 use app::adapters::repository::in_memory::InMemoryUserRepo;
-use axum::Router;
-use rust_backend_template::{
-    self as app, AppState, adapters::http::routing, domain::ports::UserRepository,
-};
+use rust_backend_template::{self as app, adapters::http::handlers::router};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,25 +10,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app::telemetry::init_tracing();
 
     // Wire dependencies (outbound adapters)
-    let repo = InMemoryUserRepo::new();
-    let user_service = app::application::user_service::UserService::new(repo);
-    let state = app::adapters::http::AppState {
-        user_service: std::sync::Arc::new(user_service),
+    let repo = Arc::new(InMemoryUserRepo::new());
+    // let user_service = app::application::user_service::UserService::new(repo);
+    let state = app::application::AppState {
+        user_repo: repo, // Inject the repository directly
     };
 
-    // Build router (inbound adapter)
-    let router = router::<InMemoryUserRepo>(state);
-    // Serve
+    let router = router(state);
     let addr = cfg.addr();
     tracing::info!(%addr, "listening on");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router).await?;
     Ok(())
-}
-
-pub fn router<R>(state: AppState<R>) -> Router
-where
-    R: UserRepository + Clone + 'static,
-{
-    routing::build::<R>().with_state(state)
 }

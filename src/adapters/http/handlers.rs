@@ -1,40 +1,39 @@
+use crate::{
+    adapters::http::dto::UserResponse,
+    application::AppState,
+    domain::{ports::UserRepository, user::NewUser},
+    error::AppError,
+};
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
+    extract::{Path, State}, response::IntoResponse, routing::{get, post}, Json, Router
 };
 use uuid::Uuid;
 
-use crate::{
-    adapters::http::AppState,
-    domain::ports::UserRepository,
-    domain::user::NewUser,
-    error::AppError,
-};
-
-use super::dto::{CreateUserRequest, UserResponse};
-
-pub async fn health() -> impl IntoResponse {
-    StatusCode::OK
-}
-
-pub async fn create_user<R: UserRepository + Clone>(
-    State(state): State<AppState<R>>,
-    Json(payload): Json<CreateUserRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    let new = NewUser {
-        name: payload.name,
-        email: payload.email,
-    };
-    let user = state.user_service.create_user(new).await?;
-    Ok((StatusCode::CREATED, Json(UserResponse::from(user))))
-}
-
-pub async fn get_user<R: UserRepository + Clone>(
+pub async fn get_user<R: UserRepository + Clone + Send + Sync + 'static>(
     Path(id): Path<Uuid>,
     State(state): State<AppState<R>>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.user_service.get_user(id).await?;
-    Ok(Json(UserResponse::from(user)))
+    // Call repository directly
+    let _user = state.user_repo.get_user(id).await.unwrap();
+    Ok(Json(UserResponse {
+        id,
+        ..Default::default()
+    }))
+}
+
+pub async fn create_user<R: UserRepository>(
+    State(state): State<AppState<R>>,
+) -> Result<impl IntoResponse, AppError> {
+    state.user_repo.create(NewUser::default()).await?;
+    Ok(Json(UserResponse {
+        id: Uuid::new_v4(),
+        ..Default::default()
+    }))
+}
+
+pub fn router<T: UserRepository + Clone + Send + Sync + 'static>(state: AppState<T>) -> Router {
+    Router::new()
+        .route("/", get(get_user))
+        .route("/", post(get_user))
+        .with_state(state)
 }

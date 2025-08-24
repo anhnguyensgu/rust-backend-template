@@ -9,7 +9,7 @@ pub struct User {
     pub email: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct NewUser {
     pub name: String,
     pub email: String,
